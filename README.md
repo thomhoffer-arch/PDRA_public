@@ -5,6 +5,11 @@ Autodesk Revit (2025/2026). The source code is private; this repo exists so
 beta testers can report bugs and request features without needing access to
 the code.
 
+## Tester guide
+
+New tester? Start with **[TESTING.md](TESTING.md)** — install, connecting
+Claude Desktop / Codex, first prompts, privacy, troubleshooting.
+
 ## Report a bug
 
 [**Open a bug report →**](../../issues/new?template=bug_report.md)
