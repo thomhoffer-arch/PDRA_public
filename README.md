@@ -5,6 +5,11 @@ Autodesk Revit (2025/2026). The source code is private; this repo exists so
 beta testers can report bugs and request features without needing access to
 the code.
 
+## About PDRA
+PDRA is a **model source** for Autodesk Revit, part of the [Loam](https://github.com/thomhoffer-arch/Loam) ecosystem. It exposes Revit data via MCP tools to enable interoperability with the [Connective Spine](https://github.com/thomhoffer-arch/Mycelium) standard.
+
+---
+
 ## Tester guide
 
 New tester? Start with **[TESTING.md](TESTING.md)** — install, connecting
