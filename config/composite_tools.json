@@ -1,0 +1,273 @@
+[
+  {
+    "name": "pdra_setup_model_from_cad",
+    "description": "Full model-setup workflow from a linked CAD file in one call: reads grid geometry and creates Revit grids, optionally sets bubble visibility from a head block layer, reads horizontal lines from a level layer to create levels, creates a floor plan view for every level, and sets each level's model extent to the grid bounding box.",
+    "scope": "global",
+    "orchestrated": false,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [],
+    "inputs": {
+      "link_id":              { "type": "integer", "description": "ImportInstance id from pdra_list_cad_layers." },
+      "grid_layer":           { "type": "string",  "description": "CAD layer containing grid lines and arcs." },
+      "level_layer":          { "type": "string",  "description": "CAD layer containing horizontal lines at floor elevations." },
+      "grid_head_layer":      { "type": "string",  "description": "Optional. CAD layer with grid head blocks for bubble placement.", "default": "" },
+      "straight_grid_labels": { "type": "array",   "description": "Names for straight grids in position order. Auto 1,2,3… if omitted.", "default": [] },
+      "arc_grid_labels":      { "type": "array",   "description": "Names for arc grids in position order. Auto A,B,C… if omitted.", "default": [] },
+      "level_labels":         { "type": "array",   "description": "Names for levels low→high. Auto BG, 01, 02… if omitted.", "default": [] },
+      "units":                { "type": "string",  "description": "CAD coordinate unit: mm or ft. Default mm.", "default": "mm" }
+    },
+    "steps": [
+      { "tool": "pdra_create_grids_from_cad_layer", "args": { "link_id": "$link_id", "layer_name": "$grid_layer", "straight_labels": "$straight_grid_labels", "arc_labels": "$arc_grid_labels", "units": "$units" } },
+      { "tool": "pdra_set_grid_bubble_visibility",  "args": { "link_id": "$link_id", "layer_name": "$grid_head_layer" } },
+      { "tool": "pdra_create_floor_plan",           "args": {} }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_set_grid_bubble_visibility",
+    "description": "Read grid head block positions from a CAD layer and set bubble visibility on existing Revit grids to match. For each grid, the end closest to a head block gets the bubble shown; the other end is hidden. Applies to all floor plan views or a specified subset.",
+    "scope": "global",
+    "orchestrated": false,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [],
+    "inputs": {
+      "link_id":      { "type": "integer", "description": "ImportInstance id from pdra_list_cad_layers." },
+      "layer_name":   { "type": "string",  "description": "CAD layer containing grid head block insertions." },
+      "view_ids":     { "type": "array",   "description": "View ids to apply to. Omit to apply to all floor plans.", "default": [] },
+      "tolerance_mm": { "type": "number",  "description": "Matching tolerance in mm. Default 500.", "default": 500 }
+    },
+    "steps": [
+      { "tool": "pdra_list_cad_layers", "args": { "link_id": "$link_id" } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_sync_ifc_mapping",
+    "description": "Match a contractor's required IFC parameter names against the model's parameters and produce an updated IFC mapping file. Reads the contractor's list, scans the model, proposes matches (LLM), confirms with the user, then writes a safe-renamed output file (timestamp suffix).",
+    "scope": "global",
+    "orchestrated": true,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [
+      { "key": "contractor_file",       "question": "Path to the contractor's required IFC names file (e.g. C:\\\\Project\\\\contractor-required.txt)?" },
+      { "key": "existing_mapping_file", "question": "Path to the existing IFC mapping file? Leave blank to start fresh." },
+      { "key": "output_mapping_file",   "question": "Where should the updated IFC mapping file be written?" }
+    ],
+    "inputs": {
+      "contractor_file":       { "type": "string" },
+      "existing_mapping_file": { "type": "string", "default": "" },
+      "output_mapping_file":   { "type": "string" }
+    },
+    "steps": [
+      { "tool": "pdra_read_text_file",        "args": { "path": "$contractor_file" } },
+      { "tool": "pdra_list_parameter_names",  "args": {} },
+      { "tool": "pdra_read_text_file",        "args": { "path": "$existing_mapping_file" } },
+      { "tool": "pdra_write_text_file",       "args": { "path": "$output_mapping_file", "content": "PLACEHOLDER — orchestrator substitutes the merged mapping content built from prior steps." } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_validate_ifc_mapping_against_model",
+    "description": "Given an IFC mapping spec (array of {category, revit_parameter, ifc_property, ...}), check that the model has those parameters populated. Reports per-entry status — ok / partial / empty / missing_param / type_mismatch — before exporting to IFC.",
+    "scope": "global",
+    "orchestrated": false,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [],
+    "inputs": {
+      "mappings": { "type": "array" }
+    },
+    "steps": [
+      { "tool": "pdra_check_ifc_mapping", "args": { "mappings": "$mappings" } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_setup_grids_and_levels_from_dwg",
+    "description": "End-to-end project setup from linked AutoCAD DWGs. Reads the DWG layer holding grid lines and creates Revit grids at exact positions, and reads the layer holding level lines and creates Revit levels at the matching elevations. Both DWGs must already be linked or imported in Revit. Asks the user to pick the link, layer, and units.",
+    "scope": "global",
+    "orchestrated": true,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [
+      { "key": "grid_link_id",       "question": "Which CAD link contains the grids? (provide the link element id from pdra_list_links)" },
+      { "key": "grid_layer_name",    "question": "Which layer in that link holds the grid lines? (e.g. A-GRID)" },
+      { "key": "level_link_id",      "question": "Which CAD link contains the levels? (id from pdra_list_links — can be the same DWG)" },
+      { "key": "level_layer_name",   "question": "Which layer in that link holds the level lines? (e.g. A-LEVL)" },
+      { "key": "units",              "question": "Coordinate units in the DWG?", "options": ["mm", "ft"] }
+    ],
+    "inputs": {
+      "grid_link_id":       { "type": "integer" },
+      "grid_layer_name":    { "type": "string"  },
+      "level_link_id":      { "type": "integer" },
+      "level_layer_name":   { "type": "string"  },
+      "units":              { "type": "string", "default": "mm" }
+    },
+    "steps": [
+      { "tool": "pdra_list_links", "args": {} },
+      { "tool": "pdra_read_cad_lines_on_layer", "args": { "link_id": "$grid_link_id",  "layer_name": "$grid_layer_name",  "units": "$units" } },
+      { "tool": "pdra_create_grids",            "args": { "grids": "PLACEHOLDER — orchestrator builds the grids array from the read_cad_lines result and pdra_ask_user-confirmed naming." } },
+      { "tool": "pdra_read_cad_lines_on_layer", "args": { "link_id": "$level_link_id", "layer_name": "$level_layer_name", "units": "$units" } },
+      { "tool": "pdra_create_levels",           "args": { "levels": "PLACEHOLDER — orchestrator builds the levels array (elevation_mm + name) from the read_cad_lines result." } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_document_floor_plans",
+    "description": "After levels and grids exist, build the floor plan documentation set: floor plan view per level, plot-view duplicate per level, view templates applied, sheets created per level, plot views placed on those sheets, view crop boxes set from grid extents. Asks for naming conventions, view templates, sheet number pattern, and title block.",
+    "scope": "global",
+    "orchestrated": true,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [
+      { "key": "work_view_prefix",    "question": "Naming prefix for work views (e.g. 'WV - ' produces 'WV - Level 1')." },
+      { "key": "plot_view_prefix",    "question": "Naming prefix for plot views (e.g. 'PV - ')." },
+      { "key": "work_template_name",  "question": "View template name to apply to work views? Leave blank to skip." },
+      { "key": "plot_template_name",  "question": "View template name to apply to plot views? Leave blank to skip." },
+      { "key": "sheet_number_pattern","question": "Sheet number pattern (e.g. 'A1.{n:02}' — {n} is replaced with a 1-based per-level index)." },
+      { "key": "title_block_name",    "question": "Title block family-and-type name to use for new sheets (from pdra_list_title_blocks)." },
+      { "key": "crop_padding_mm",     "question": "Padding around the grid extents when setting crop boxes, in mm.", "options": ["0", "500", "1000", "2000"] }
+    ],
+    "inputs": {
+      "work_view_prefix":     { "type": "string", "default": "WV - " },
+      "plot_view_prefix":     { "type": "string", "default": "PV - " },
+      "work_template_name":   { "type": "string", "default": "" },
+      "plot_template_name":   { "type": "string", "default": "" },
+      "sheet_number_pattern": { "type": "string", "default": "A1.{n:02}" },
+      "title_block_name":     { "type": "string" },
+      "crop_padding_mm":      { "type": "number", "default": 500 }
+    },
+    "steps": [
+      { "tool": "pdra_list_levels",        "args": {} },
+      { "tool": "pdra_list_grids",         "args": {} },
+      { "tool": "pdra_create_floor_plan",  "args": { "level_ids": "PLACEHOLDER — orchestrator passes the level ids from pdra_list_levels." } },
+      { "tool": "pdra_duplicate_view",     "args": { "view_id": "PLACEHOLDER", "mode": "with_detailing", "new_name": "PLACEHOLDER" } },
+      { "tool": "pdra_apply_view_template","args": { "template_name": "$work_template_name", "view_ids": "PLACEHOLDER — work view ids" } },
+      { "tool": "pdra_apply_view_template","args": { "template_name": "$plot_template_name", "view_ids": "PLACEHOLDER — plot view ids" } },
+      { "tool": "pdra_set_view_crop_box",  "args": { "view_ids": "PLACEHOLDER — every floor plan view", "min_x": 0, "min_y": 0, "max_x": 0, "max_y": 0, "padding": "$crop_padding_mm" } },
+      { "tool": "pdra_create_sheet",       "args": { "number": "PLACEHOLDER", "name": "PLACEHOLDER", "title_block_name": "$title_block_name" } },
+      { "tool": "pdra_place_viewport_on_sheet", "args": { "sheet_id": "PLACEHOLDER", "view_id": "PLACEHOLDER" } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_dimension_grids_and_levels_all_views",
+    "description": "Place grid dimension chains on every plan view and level dimension chains on every section + elevation. Asks which plan types to include, what to do for views that already have dim chains, an optional name-prefix to skip, and the dimension type. Iterates view-by-view inside one TransactionGroup so the whole batch is a single undo entry.",
+    "scope": "global",
+    "orchestrated": true,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [
+      { "key": "include_plan_types",   "question": "Which plan view types should receive grid dimensions?", "options": ["FloorPlan", "FloorPlan,CeilingPlan", "FloorPlan,CeilingPlan,AreaPlan,EngineeringPlan"] },
+      { "key": "skip_existing",        "question": "When a view already has dim chains of the relevant kind, what should we do?", "options": ["skip", "add another chain", "delete and replace"] },
+      { "key": "name_skip_pattern",    "question": "Skip views whose name starts with this prefix? (leave blank for none, e.g. 'WIP_' or 'Presentation_')" },
+      { "key": "dimension_type_id",    "question": "Dimension type id (from pdra_list_dimension_types — leave 0 to use the saved default)." }
+    ],
+    "inputs": {
+      "include_plan_types":  { "type": "string",  "default": "FloorPlan" },
+      "skip_existing":       { "type": "string",  "default": "skip" },
+      "name_skip_pattern":   { "type": "string",  "default": "" },
+      "dimension_type_id":   { "type": "integer", "default": 0 }
+    },
+    "steps": [
+      { "tool": "pdra_list_dimension_types",            "args": {} },
+      { "tool": "pdra_list_views",                      "args": { "view_type": "$include_plan_types" } },
+      { "tool": "pdra_list_views",                      "args": { "view_type": "Section,Elevation" } },
+      { "tool": "pdra_summarize_view_contents",         "args": { "view_id": "PLACEHOLDER — orchestrator iterates each view; cheap recon to skip empty views." } },
+      { "tool": "pdra_inspect_view_visibility",         "args": { "view_id": "PLACEHOLDER — orchestrator iterates each view; skip when Grids/Levels are hidden." } },
+      { "tool": "pdra_find_existing_dimensions_in_view","args": { "view_id": "PLACEHOLDER — orchestrator iterates each view; honour $skip_existing (skip / add / delete-and-replace via pdra_delete_elements)." } },
+      { "tool": "pdra_dimension_grids",  "args": { "view_id": "PLACEHOLDER — orchestrator iterates over plan view ids", "dimension_type_id": "$dimension_type_id" } },
+      { "tool": "pdra_dimension_levels", "args": { "view_id": "PLACEHOLDER — orchestrator iterates over section/elevation ids", "dimension_type_id": "$dimension_type_id" } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_kozijnstaat_per_door_type",
+    "description": "[LEGACY — DO NOT USE FOR ANNOTATED KOZIJNSTATEN] Builds an assembly + assembly-views-based kozijnstaat sheet per door type. Assembly views silently clip API-placed dimensions and spot elevations, so this path produces sheets that need every annotation placed by hand. For an annotation-friendly kozijnstaat, chain: pdra_list_family_types → for each type, pdra_create_kozijnstaat_sections(wall_id, mark) → pdra_apply_view_template → pdra_create_sheet → pdra_place_viewport_on_sheet × 3 → pdra_create_window_door_schedule. This composite stays for projects that intentionally use Revit's native assembly-grouping for non-annotation deliverables.",
+    "scope": "global",
+    "orchestrated": true,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [
+      { "key": "category",        "question": "Which category to build the kozijnstaat for?", "options": ["OST_Doors", "OST_Windows"] },
+      { "key": "title_block_id",  "question": "Title block to use for the new sheets (id from pdra_list_title_blocks)." },
+      { "key": "view_kinds",      "question": "Which assembly views should each sheet show? (comma-separated)", "options": ["elevation_front,3d,schedule", "elevation_front,horizontal_section,3d,schedule", "elevation_front,elevation_left,horizontal_section,3d,schedule"] },
+      { "key": "browser_folder",  "question": "Browser folder name for the new sheets (e.g. '200-kozijnstaat')." },
+      { "key": "name_pattern",    "question": "Assembly + sheet name pattern. {mark} = type Mark, {family} = family name, {type} = type name.", "options": ["KZ-{mark}", "KZ-{family}-{type}", "{family} {type}"] },
+      { "key": "skip_types",      "question": "Type marks (or family:type names) to skip — comma-separated, leave blank for none." }
+    ],
+    "inputs": {
+      "category":        { "type": "string",  "default": "OST_Doors" },
+      "title_block_id":  { "type": "integer" },
+      "view_kinds":      { "type": "string",  "default": "elevation_front,3d,schedule" },
+      "browser_folder":  { "type": "string",  "default": "200-kozijnstaat" },
+      "name_pattern":    { "type": "string",  "default": "KZ-{mark}" },
+      "skip_types":      { "type": "string",  "default": "" }
+    },
+    "steps": [
+      { "tool": "pdra_list_family_types",          "args": { "category": "$category" } },
+      { "tool": "pdra_list_assemblies",            "args": {} },
+      { "tool": "pdra_create_assembly_from_type",  "args": { "type_id": "PLACEHOLDER — orchestrator iterates per type from pdra_list_family_types. Tool itself picks the first instance. Skip if pdra_list_assemblies already shows one with the resulting name.", "name": "$name_pattern" } },
+      { "tool": "pdra_create_assembly_views",      "args": { "assembly_id": "PLACEHOLDER — orchestrator iterates", "kinds": "PLACEHOLDER — split $view_kinds by comma into an array. Tool itself is idempotent — already-existing kinds are skipped." } },
+      { "tool": "pdra_create_sheet_from_assembly", "args": { "assembly_id": "PLACEHOLDER — orchestrator iterates", "title_block_id": "$title_block_id" } },
+      { "tool": "pdra_set_browser_group",          "args": { "element_ids": "PLACEHOLDER — every newly-created sheet id collected from prior steps", "folder": "$browser_folder" } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_create_level_matching",
+    "description": "Create a new level whose extent matches an existing reference level — chooses the cleanest available path. Prefers scope-box inheritance (project-wide, no overrides) when the reference is assigned to one; otherwise copies the reference's model curve direction. The atomic pdra_set_level_elevation already implements the decision; this workflow handles discovery (list existing levels, pick a reference) and naming.",
+    "scope": "global",
+    "orchestrated": true,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [
+      { "key": "level_name",         "question": "Name for the new level (e.g. '01a tussenverdieping')." },
+      { "key": "elevation_mm",       "question": "Elevation in mm (e.g. 3500 for 3.5 m above project zero; negatives allowed for basements)." },
+      { "key": "reference_level_id", "question": "Reference level id whose extent the new level should match (id from pdra_list_levels). Leave blank to auto-pick the closest level by elevation." }
+    ],
+    "inputs": {
+      "level_name":         { "type": "string"  },
+      "elevation_mm":       { "type": "number"  },
+      "reference_level_id": { "type": "integer", "default": 0 }
+    },
+    "steps": [
+      { "tool": "pdra_list_levels",        "args": {} },
+      { "tool": "pdra_list_scope_boxes",   "args": {} },
+      { "tool": "pdra_get_element_parameters", "args": { "element_id": "PLACEHOLDER — reference_level_id (or auto-pick the closest level if 0). Reads Scope Box and Elevation so the orchestrator can decide which match path to expect." } },
+      { "tool": "pdra_set_level_elevation","args": { "level_name": "$level_name", "elevation_feet": "PLACEHOLDER — convert $elevation_mm to feet (mm / 304.8). The atomic accepts feet only.", "match_extents_from": "PLACEHOLDER — reference level id resolved above. The atomic prefers scope-box inheritance when the reference has one, falling back to model-curve copy." } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  },
+  {
+    "name": "pdra_compliance_snapshot",
+    "description": "Always-on compliance record (1 call): run the model-truth quality checks AND append a metric snapshot to the version-controlled history, so a firm can capture a checkable compliance state at any milestone. Deterministic — both steps source their own data (quality checks scan the model; the snapshot is captured live). Pass commit:'commit'/'push' on a developer install to version the record with the team. Pair with pdra_export_process_trace to get the action trail alongside the state.",
+    "scope": "global",
+    "orchestrated": false,
+    "author": "user",
+    "version": 1,
+    "clarificationQuestions": [],
+    "inputs": {
+      "phase":  { "type": "string", "description": "Project stage tag for the snapshot, e.g. concept/DO/TO/oplevering.", "default": "" },
+      "label":  { "type": "string", "description": "Free-form note for this compliance snapshot.", "default": "" },
+      "commit": { "type": "string", "description": "Git action on the repo-tracked record (dev mode only): none/commit/push. Default none.", "default": "none" }
+    },
+    "steps": [
+      { "tool": "pdra_run_quality_checks", "args": {} },
+      { "tool": "pdra_log_metrics",        "args": { "phase": "$phase", "label": "$label", "commit": "$commit" } }
+    ],
+    "prev":     [],
+    "feedback": { "up": 0, "down": 0, "recent": [] }
+  }
+]
