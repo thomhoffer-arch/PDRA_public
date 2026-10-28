@@ -1,51 +1,5 @@
 [
   {
-    "name": "pdra_setup_model_from_cad",
-    "description": "Full model-setup workflow from a linked CAD file in one call: reads grid geometry and creates Revit grids, optionally sets bubble visibility from a head block layer, reads horizontal lines from a level layer to create levels, creates a floor plan view for every level, and sets each level's model extent to the grid bounding box.",
-    "scope": "global",
-    "orchestrated": false,
-    "author": "user",
-    "version": 1,
-    "clarificationQuestions": [],
-    "inputs": {
-      "link_id":              { "type": "integer", "description": "ImportInstance id from pdra_list_cad_layers." },
-      "grid_layer":           { "type": "string",  "description": "CAD layer containing grid lines and arcs." },
-      "level_layer":          { "type": "string",  "description": "CAD layer containing horizontal lines at floor elevations." },
-      "grid_head_layer":      { "type": "string",  "description": "Optional. CAD layer with grid head blocks for bubble placement.", "default": "" },
-      "straight_grid_labels": { "type": "array",   "description": "Names for straight grids in position order. Auto 1,2,3… if omitted.", "default": [] },
-      "arc_grid_labels":      { "type": "array",   "description": "Names for arc grids in position order. Auto A,B,C… if omitted.", "default": [] },
-      "level_labels":         { "type": "array",   "description": "Names for levels low→high. Auto BG, 01, 02… if omitted.", "default": [] },
-      "units":                { "type": "string",  "description": "CAD coordinate unit: mm or ft. Default mm.", "default": "mm" }
-    },
-    "steps": [
-      { "tool": "pdra_create_grids_from_cad_layer", "args": { "link_id": "$link_id", "layer_name": "$grid_layer", "straight_labels": "$straight_grid_labels", "arc_labels": "$arc_grid_labels", "units": "$units" } },
-      { "tool": "pdra_set_grid_bubble_visibility",  "args": { "link_id": "$link_id", "layer_name": "$grid_head_layer" } },
-      { "tool": "pdra_create_floor_plan",           "args": {} }
-    ],
-    "prev":     [],
-    "feedback": { "up": 0, "down": 0, "recent": [] }
-  },
-  {
-    "name": "pdra_set_grid_bubble_visibility",
-    "description": "Read grid head block positions from a CAD layer and set bubble visibility on existing Revit grids to match. For each grid, the end closest to a head block gets the bubble shown; the other end is hidden. Applies to all floor plan views or a specified subset.",
-    "scope": "global",
-    "orchestrated": false,
-    "author": "user",
-    "version": 1,
-    "clarificationQuestions": [],
-    "inputs": {
-      "link_id":      { "type": "integer", "description": "ImportInstance id from pdra_list_cad_layers." },
-      "layer_name":   { "type": "string",  "description": "CAD layer containing grid head block insertions." },
-      "view_ids":     { "type": "array",   "description": "View ids to apply to. Omit to apply to all floor plans.", "default": [] },
-      "tolerance_mm": { "type": "number",  "description": "Matching tolerance in mm. Default 500.", "default": 500 }
-    },
-    "steps": [
-      { "tool": "pdra_list_cad_layers", "args": { "link_id": "$link_id" } }
-    ],
-    "prev":     [],
-    "feedback": { "up": 0, "down": 0, "recent": [] }
-  },
-  {
     "name": "pdra_sync_ifc_mapping",
     "description": "Match a contractor's required IFC parameter names against the model's parameters and produce an updated IFC mapping file. Reads the contractor's list, scans the model, proposes matches (LLM), confirms with the user, then writes a safe-renamed output file (timestamp suffix).",
     "scope": "global",
@@ -216,7 +170,7 @@
     "steps": [
       { "tool": "pdra_list_family_types",          "args": { "category": "$category" } },
       { "tool": "pdra_list_assemblies",            "args": {} },
-      { "tool": "pdra_create_assembly_from_type",  "args": { "type_id": "PLACEHOLDER — orchestrator iterates per type from pdra_list_family_types. Tool itself picks the first instance. Skip if pdra_list_assemblies already shows one with the resulting name.", "name": "$name_pattern" } },
+      { "tool": "pdra_create_assembly",  "args": { "type_id": "PLACEHOLDER — orchestrator iterates per type from pdra_list_family_types. Tool itself picks the first instance. Skip if pdra_list_assemblies already shows one with the resulting name.", "name": "$name_pattern" } },
       { "tool": "pdra_create_assembly_views",      "args": { "assembly_id": "PLACEHOLDER — orchestrator iterates", "kinds": "PLACEHOLDER — split $view_kinds by comma into an array. Tool itself is idempotent — already-existing kinds are skipped." } },
       { "tool": "pdra_create_sheet_from_assembly", "args": { "assembly_id": "PLACEHOLDER — orchestrator iterates", "title_block_id": "$title_block_id" } },
       { "tool": "pdra_set_browser_group",          "args": { "element_ids": "PLACEHOLDER — every newly-created sheet id collected from prior steps", "folder": "$browser_folder" } }
