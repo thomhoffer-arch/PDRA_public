@@ -1,6 +1,6 @@
 {
-    "files":  [
-                  "/kozijnstaat/references/standards.md",
-                  "/kozijnstaat/SKILL.md"
-              ]
+  "files": [
+    "kozijnstaat/SKILL.md",
+    "kozijnstaat/references/standards.md"
+  ]
 }
