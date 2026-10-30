@@ -99,9 +99,9 @@
       "crop_padding_mm":      { "type": "number", "default": 500 }
     },
     "steps": [
-      { "tool": "pdra_list_levels",        "args": {} },
+      { "tool": "pdra_browse_model",       "args": { "node": "project" } },
       { "tool": "pdra_list_grids",         "args": {} },
-      { "tool": "pdra_create_floor_plan",  "args": { "level_ids": "PLACEHOLDER — orchestrator passes the level ids from pdra_list_levels." } },
+      { "tool": "pdra_create_floor_plan",  "args": { "level_ids": "PLACEHOLDER — orchestrator passes the level ids from pdra_browse_model (node project)." } },
       { "tool": "pdra_duplicate_view",     "args": { "view_id": "PLACEHOLDER", "mode": "with_detailing", "new_name": "PLACEHOLDER" } },
       { "tool": "pdra_apply_view_template","args": { "template_name": "$work_template_name", "view_ids": "PLACEHOLDER — work view ids" } },
       { "tool": "pdra_apply_view_template","args": { "template_name": "$plot_template_name", "view_ids": "PLACEHOLDER — plot view ids" } },
@@ -188,7 +188,7 @@
     "clarificationQuestions": [
       { "key": "level_name",         "question": "Name for the new level (e.g. '01a tussenverdieping')." },
       { "key": "elevation_mm",       "question": "Elevation in mm (e.g. 3500 for 3.5 m above project zero; negatives allowed for basements)." },
-      { "key": "reference_level_id", "question": "Reference level id whose extent the new level should match (id from pdra_list_levels). Leave blank to auto-pick the closest level by elevation." }
+      { "key": "reference_level_id", "question": "Reference level id whose extent the new level should match (id from pdra_browse_model, node project). Leave blank to auto-pick the closest level by elevation." }
     ],
     "inputs": {
       "level_name":         { "type": "string"  },
@@ -196,7 +196,7 @@
       "reference_level_id": { "type": "integer", "default": 0 }
     },
     "steps": [
-      { "tool": "pdra_list_levels",        "args": {} },
+      { "tool": "pdra_browse_model",       "args": { "node": "project" } },
       { "tool": "pdra_list_scope_boxes",   "args": {} },
       { "tool": "pdra_get_element_parameters", "args": { "element_id": "PLACEHOLDER — reference_level_id (or auto-pick the closest level if 0). Reads Scope Box and Elevation so the orchestrator can decide which match path to expect." } },
       { "tool": "pdra_set_level_elevation","args": { "level_name": "$level_name", "elevation_feet": "PLACEHOLDER — convert $elevation_mm to feet (mm / 304.8). The atomic accepts feet only.", "match_extents_from": "PLACEHOLDER — reference level id resolved above. The atomic prefers scope-box inheritance when the reference has one, falling back to model-curve copy." } }
